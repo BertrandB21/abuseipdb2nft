@@ -1,0 +1,8 @@
+apiKey: "YOUR-ABUSEIPDB-APIKEY-HERE" #Your ApiKey
+apiEndpoint: "https://api.abuseipdb.com/api/v2/blacklist" #you don't need to chage it
+nftablesTable: "inet abuseipdb" # "inet" allows both IPv4 and IPv6
+ipv4Set: "abuseipdb_blacklist_ipv4"
+ipv6Set: "abuseipdb_blacklist_ipv6"
+dayAgedMax: 30 # limit of numbers of day for last detection
+limit: 2000 #Limit for number of ips donwload
+categories: "10,12,21,22" # You can change these to whatever categories you want to target Example: 18 (DDoS), 22 (Brute Force)
