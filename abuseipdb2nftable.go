@@ -1,5 +1,5 @@
 package main
-//TODO passer le paramètre limit au fetch - faire le fichier systemd.timer
+//TODO faire les fichiers systemd, ajouter numérode version et paramètres -v et -h
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 	"gopkg.in/yaml.v2"
+	"strconv"
 )
 
 type BlacklistResponse struct {
@@ -74,6 +75,7 @@ func fetchBlacklist(categories string) ([]string, []string, error) {
 	// Set category filter in query parameters (e.g., "18,22" for DDoS and Brute Force)
 	q := req.URL.Query()
 	q.Add("categories", categories)
+	q.Add("limit", strconv.Itoa(c.Limit))
 	req.URL.RawQuery = q.Encode()
 
 	// Send the request
@@ -92,12 +94,14 @@ func fetchBlacklist(categories string) ([]string, []string, error) {
 
 	// Parse the response JSON
 	var response BlacklistResponse
+	//optimisation possible utiliser make pour tailler un response.Data suffisament grand
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, nil, err
 	}
 
 	// Separate IPs into IPv4 and IPv6
-	var ipv4Addresses, ipv6Addresses []string
+	ipv4Addresses:=make([]string,0,c.Limit)
+	ipv6Addresses:=make([]string,0,c.Limit/50)
 	afterDay := time.Now().AddDate(0,0,-1 * c.DayAgedMax )
 	for _, data := range response.Data {
 	 if data.LastReportedAt.After(afterDay) {
@@ -110,6 +114,9 @@ func fetchBlacklist(categories string) ([]string, []string, error) {
 			}
 		}
 	}
+	//temporaire pour réglage des tailles des listes d'IP
+	println("nb ipv4",len(ipv4Addresses))
+	println("nb ipv6",len(ipv6Addresses))
 
 	return ipv4Addresses, ipv6Addresses, nil
 }
@@ -179,11 +186,11 @@ func createNftablesSet(ipAddresses []string, setName string, ipType string) erro
 		if err != nil {
 			return fmt.Errorf("error creating nftables set: %v", err)
 		}
-		//To do si on crée le set alors on pense à ajouter la rule
 		typ := "ip6"
 		if setName == c.Ipv4Set {
 			typ = "ip"
 		}
+		//metre le log des rejets en optionnel
 		cmd = exec.Command("nft", "add", "rule", c.NftablesTable, "input", typ, "saddr", "@"+setName, "log prefix \"abuseipdb reject:\" drop")
 		err = cmd.Run()
 		if err != nil {
@@ -192,17 +199,18 @@ func createNftablesSet(ipAddresses []string, setName string, ipType string) erro
 
 	}
 	// Add the IPs to the set
-	for _, ip := range ipAddresses {
-		cmd := exec.Command("nft", "add", "element", c.NftablesTable, setName, fmt.Sprintf("{ %s }", ip))
+	//Passer tranche dans les paramètres
+	tranche:=5000
+	for debut:=0;debut < len(ipAddresses)-1;debut=debut+tranche {
+		cmd := exec.Command("nft", "add", "element", c.NftablesTable, setName, fmt.Sprintf("{ %s }", strings.Join(ipAddresses[debut:min(debut+tranche,len(ipAddresses)-1)],",")))
 		cmd.Stdout = &out
-		err := cmd.Run()
+		err = cmd.Run()
 		if err != nil {
 			return fmt.Errorf("error adding IP to nftables set: %v", err)
 		}
+		fmt.Println(out.String())
 	}
-
 	// Print the output from the nft command
-	fmt.Println(out.String())
 	return nil
 }
 
