@@ -1,0 +1,7 @@
+[Unit]
+Description="launch abuseipd2nftable to update nftable with abuseipdb blacklist"
+Requires=abuseipdb2nftable.timer
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/abuseipdb2nftable
